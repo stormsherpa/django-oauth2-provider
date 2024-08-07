@@ -1,9 +1,9 @@
 import base64
 import json
 import datetime
-from six.moves.urllib_parse import urlparse, parse_qs, quote
+from urllib.parse import urlparse, parse_qs, quote
 
-from unittest import SkipTest
+from unittest.mock import patch
 from django.http import QueryDict
 from django.conf import settings
 from django.shortcuts import reverse
@@ -15,7 +15,7 @@ from provider.compat import skipIfCustomUser
 from provider.templatetags.scope import scopes
 from provider.utils import now as date_now
 from provider.oauth2.forms import ClientForm
-from provider.oauth2.models import Client, Grant, AccessToken, RefreshToken, AuthorizedClient
+from provider.oauth2.models import Client, Grant, AccessToken, RefreshToken, AuthorizedClient, AwsAccount
 from provider.oauth2.backends import BasicClientBackend, RequestParamsClientBackend
 from provider.oauth2.backends import AccessTokenBackend
 
@@ -51,6 +51,9 @@ class BaseOAuth2TestCase(TestCase):
 
     def get_password(self):
         return 'test'
+
+    def get_aws_role(self):
+        return AwsAccount.objects.get(id=1)
 
     def _login_and_authorize(self, url_func=None):
         if url_func is None:
@@ -507,6 +510,75 @@ class AccessTokenTest(BaseOAuth2TestCase):
     def test_access_token_response_valid_token_type(self):
         token = self._login_authorize_get_token()
         self.assertEqual(token['token_type'], constants.TOKEN_TYPE, token)
+
+    @patch('urllib.request.urlopen')
+    def test_aws_grant_invalid_caller_identity(self, urlopen):
+        headers = {
+            "header1": "a",
+            "header2": "b",
+        }
+        post_body = "mypostbody"
+
+        caller_identity_result = """
+        <GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+            <GetCallerIdentityResult>
+                <Arn>arn:aws:iam::123456789012:user/myuser</Arn>
+                <UserId>AIDA27</UserId>
+                <Account>123456789012</Account>
+            </GetCallerIdentityResult>
+            <ResponseMetadata>
+                <RequestId>00000000-3558-43b5-8157-07d0769322b5</RequestId>
+            </ResponseMetadata>
+        </GetCallerIdentityResponse>""".strip("\n ").encode('utf-8')
+
+        urlopen.return_value.read.return_value = caller_identity_result
+
+        urlopen.return_value.code = 200
+
+        response = self.client.post(self.access_token_url(), {
+            'grant_type': 'aws_identity',
+            'region': "us-west-2",
+            'post_body': post_body,
+            'headers_json': json.dumps(headers),
+        })
+
+        self.assertEqual(400, response.status_code)
+        self.assertEqual('not_authorized', json.loads(response.content),
+                         response.content)
+
+    @patch('urllib.request.urlopen')
+    def test_aws_grant_valid_caller_identity(self, urlopen):
+        headers = {
+            "header1": "a",
+            "header2": "b",
+        }
+        post_body = "mypostbody"
+
+        caller_identity_result = """
+        <GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+            <GetCallerIdentityResult>
+                <Arn>arn:aws:iam::123456789012:assumed-role/testrole/testsession</Arn>
+                <UserId>AIDA27</UserId>
+                <Account>123456789012</Account>
+            </GetCallerIdentityResult>
+            <ResponseMetadata>
+                <RequestId>00000000-3558-43b5-8157-07d0769322b5</RequestId>
+            </ResponseMetadata>
+        </GetCallerIdentityResponse>""".strip("\n ").encode('utf-8')
+
+        urlopen.return_value.read.return_value = caller_identity_result
+
+        urlopen.return_value.code = 200
+
+        response = self.client.post(self.access_token_url(), {
+            'grant_type': 'aws_identity',
+            'region': "us-west-2",
+            'post_body': post_body,
+            'headers_json': json.dumps(headers),
+        })
+
+        self.assertEqual(200, response.status_code)
+        self.assertNotIn('refresh_token', json.loads(response.content))
 
 
 class AuthBackendTest(BaseOAuth2TestCase):

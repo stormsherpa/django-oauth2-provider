@@ -6,6 +6,7 @@ views in :attr:`provider.views`.
 
 from django.db import models
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from provider import constants
 from provider.constants import CLIENT_TYPES
 from provider.utils import now, short_token, long_token, get_code_expiry
@@ -264,3 +265,34 @@ class RefreshToken(models.Model):
     class Meta:
         app_label = 'oauth2'
         db_table = 'oauth2_refreshtoken'
+
+
+class AwsAccount(models.Model):
+    arn = models.CharField(max_length=255, unique=True, help_text="AWS User or Role ARN")
+    general_type = models.CharField(max_length=15, blank=True, null=True)
+    account_id = models.CharField(max_length=12, blank=True, null=True)
+    name = models.CharField(max_length=255, blank=True, null=True)
+
+    client = models.ForeignKey('Client', models.DO_NOTHING)
+    autoprovision_user = models.BooleanField(default=True, help_text="Automatically create acting user on first use")
+    acting_user = models.ForeignKey(settings.AUTH_USER_MODEL, models.DO_NOTHING, blank=True, null=True)
+    max_token_lifetime = models.IntegerField(default=3600, blank=True, help_text="Maximum access token lifetime in seconds")
+    scope = models.ManyToManyField("Scope", help_text="Scopes to be applied to tokens")
+
+    class Meta:
+        app_label = 'oauth2'
+        db_table = 'oauth2_awsaccount'
+        unique_together = (
+            ('general_type', 'account_id', 'name'),
+        )
+
+    def get_or_create_user(self):
+        if self.acting_user is not None:
+            return self.acting_user
+
+        if self.autoprovision_user:
+            username = f"{self.name}_{self.general_type}_{self.account_id}"
+            User = get_user_model()
+            self.acting_user, _ = User.objects.get_or_create(username=username)
+            self.save()
+            return self.acting_user

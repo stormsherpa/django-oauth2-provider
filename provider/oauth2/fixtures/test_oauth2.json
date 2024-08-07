@@ -75,6 +75,24 @@
     },
     {
         "fields": {
+            "date_joined": "2012-01-23 05:53:31",
+            "email": "",
+            "first_name": "",
+            "groups": [],
+            "is_active": true,
+            "is_staff": false,
+            "is_superuser": false,
+            "last_login": "2012-01-23 05:53:31",
+            "last_name": "",
+            "password": "sha1$0cf1b$d66589690edd96b410170fcae5cc2bdfb68821e7",
+            "user_permissions": [],
+            "username": "test-user-aws"
+        },
+        "model": "auth.user",
+        "pk": 3
+    },
+    {
+        "fields": {
             "name": "basic",
             "description": "A basic scope"
         },
@@ -88,5 +106,19 @@
         },
         "model": "oauth2.scope",
         "pk": 2
+    },
+    {
+        "fields": {
+            "arn": "arn:aws:iam::123456789012:role/testrole",
+            "account_id": "123456789012",
+            "name": "testrole",
+            "general_type": "role",
+            "client": 2,
+            "autoprovision_user": false,
+            "acting_user": 3,
+            "scope": ["basic", "advanced"]
+        },
+        "model": "oauth2.awsaccount",
+        "pk": 1
     }
 ]

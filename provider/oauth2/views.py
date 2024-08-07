@@ -3,7 +3,7 @@ from django.shortcuts import reverse
 from provider import constants
 from provider.views import CaptureViewBase, AuthorizeViewBase, RedirectViewBase
 from provider.views import AccessTokenViewBase, OAuthError
-from provider.utils import now
+from provider.utils import now, ArnHelper
 from provider.oauth2 import forms
 from provider.oauth2 import models
 from provider.oauth2 import backends
@@ -114,6 +114,24 @@ class AccessTokenView(AccessTokenViewBase):
         if not form.is_valid():
             raise OAuthError(form.errors)
         return form.cleaned_data
+
+    def get_aws_grant(self, request, data, _client):
+        form = forms.AwsGrantForm(data)
+        if not form.is_valid():
+            raise OAuthError(form.errors)
+        data = form.cleaned_data
+        arn = data.get('arn')
+        try:
+            account = models.AwsAccount.objects.get(
+                account_id=arn.account_id,
+                general_type=arn.general_type,
+                name=arn.name,
+            )
+        except models.AwsAccount.DoesNotExist:
+            raise OAuthError("not_authorized")
+
+        data['awsaccount'] = account
+        return data
 
     def get_access_token(self, request, user, scope, client):
         try:

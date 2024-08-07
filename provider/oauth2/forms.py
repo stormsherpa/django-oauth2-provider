@@ -1,4 +1,7 @@
-from six import string_types
+from io import StringIO
+from urllib import request
+from xml.etree import ElementTree
+
 from django import forms
 from django.contrib.auth import authenticate
 from django.conf import settings
@@ -6,7 +9,7 @@ from django.utils.translation import gettext as _
 from django.utils import timezone
 from provider.constants import RESPONSE_TYPE_CHOICES, SCOPES, PUBLIC
 from provider.forms import OAuthForm, OAuthValidationError
-from provider.utils import now
+from provider.utils import now, ArnHelper
 from provider.oauth2.models import Client, Grant, RefreshToken, Scope
 
 
@@ -53,7 +56,7 @@ class ScopeModelChoiceField(forms.ModelMultipleChoiceField):
     # widget = forms.TextInput
 
     def to_python(self, value):
-        if isinstance(value, string_types):
+        if isinstance(value, str):
             return [s for s in value.split(' ') if s != '']
         elif isinstance(value, list):
             value_list = list()
@@ -309,6 +312,44 @@ class PublicPasswordGrantForm(PasswordGrantForm):
 
         data['client'] = client
         return data
+
+
+class AwsGrantForm(OAuthForm):
+    grant_type = forms.CharField(required=True)
+    region = forms.CharField(required=True)
+    post_body = forms.CharField(required=True)
+    headers_json = forms.JSONField(required=True)
+
+    def clean_grant_type(self):
+        grant_type = self.cleaned_data.get('grant_type')
+
+        if grant_type != 'aws_identity':
+            raise OAuthValidationError({'error': 'invalid_grant'})
+
+        return grant_type
+
+    def clean(self):
+        region = self.cleaned_data['region']
+
+        sts_url = f"https://sts.{region}.amazonaws.com/"
+
+        post_body = self.cleaned_data['post_body']
+        headers_json = self.cleaned_data['headers_json']
+
+        req = request.Request(sts_url, data=post_body.encode('utf-8'), headers=headers_json, method='POST')
+        response = request.urlopen(req)
+        if response.code != 200:
+            raise OAuthValidationError({'error': 'invalid_grant'})
+
+        xmldata = response.read()
+
+        et = ElementTree.parse(StringIO(xmldata.decode('utf-8')))
+        root = et.getroot()
+        result = root.find('{https://sts.amazonaws.com/doc/2011-06-15/}GetCallerIdentityResult')
+        caller_arn = result.find('{https://sts.amazonaws.com/doc/2011-06-15/}Arn').text
+        self.cleaned_data['arn_string'] = caller_arn
+        self.cleaned_data['arn'] = ArnHelper(caller_arn)
+        return self.cleaned_data
 
 
 class PublicClientForm(OAuthForm):
