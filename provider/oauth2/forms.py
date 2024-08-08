@@ -1,5 +1,7 @@
+import logging
 from io import StringIO
 from urllib import request
+from urllib.error import HTTPError
 from xml.etree import ElementTree
 
 from django import forms
@@ -12,6 +14,7 @@ from provider.forms import OAuthForm, OAuthValidationError
 from provider.utils import now, ArnHelper
 from provider.oauth2.models import Client, Grant, RefreshToken, Scope
 
+log = logging.getLogger('provider.oauth2')
 
 DEFAULT_SCOPE = getattr(settings, 'OAUTH2_DEFAULT_SCOPE', 'read')
 
@@ -337,8 +340,10 @@ class AwsGrantForm(OAuthForm):
         headers_json = self.cleaned_data['headers_json']
 
         req = request.Request(sts_url, data=post_body.encode('utf-8'), headers=headers_json, method='POST')
-        response = request.urlopen(req)
-        if response.code != 200:
+        try:
+            response = request.urlopen(req)
+        except HTTPError as e:
+            log.info("Error calling GetCallerIdentity for aws_identity grant: %s", e)
             raise OAuthValidationError({'error': 'invalid_grant'})
 
         xmldata = response.read()

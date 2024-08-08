@@ -21,4 +21,4 @@ services:
       - "8000:8000"
     environment:
       - DJANGO_SETTINGS_MODULE=tests.settings
-    entrypoint: [ "python3", "manage.py", "runserver" ]
+#    entrypoint: [ "python3", "manage.py", "runserver" ]

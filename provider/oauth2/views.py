@@ -1,4 +1,6 @@
 from datetime import timedelta
+import logging
+
 from django.shortcuts import reverse
 from provider import constants
 from provider.views import CaptureViewBase, AuthorizeViewBase, RedirectViewBase
@@ -7,6 +9,9 @@ from provider.utils import now, ArnHelper
 from provider.oauth2 import forms
 from provider.oauth2 import models
 from provider.oauth2 import backends
+
+log = logging.getLogger('provider.oauth2')
+
 
 class CaptureView(CaptureViewBase):
     """
@@ -128,6 +133,7 @@ class AccessTokenView(AccessTokenViewBase):
                 name=arn.name,
             )
         except models.AwsAccount.DoesNotExist:
+            log.info("No AwsAccount found for arn '%s'", arn.arn)
             raise OAuthError("not_authorized")
 
         data['awsaccount'] = account
