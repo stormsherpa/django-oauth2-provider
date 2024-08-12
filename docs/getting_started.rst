@@ -35,7 +35,7 @@ Add :attr:`provider.oauth2.urls` to your root ``urls.py`` file.
 
 ::
 
-    url(r'^oauth2/', include('provider.oauth2.urls', namespace = 'oauth2')),
+    path('oauth2/', include(('provider.oauth2.urls', 'oauth2'))),
     
     
 .. note:: The namespace argument is required.    
