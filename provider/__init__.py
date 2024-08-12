@@ -1,2 +1,2 @@
-__version__ = "4.1.dev5"
+__version__ = "4.2"
 # The major version is expected to follow the current django major version:q
