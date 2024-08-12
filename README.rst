@@ -12,3 +12,10 @@ License
 =======
 
 *django-oauth2* is a fork of *django-oauth2-provider* which is released under the MIT License. Please see the LICENSE file for details.
+
+
+Packaging
+=========
+
+ $ python -m build
+

@@ -24,7 +24,6 @@ setup(
     ],
     install_requires=[
         "shortuuid>=1.0.11",
-        "six>=0.16.0",
         "sqlparse>=0.4.3",
     ],
     include_package_data=True,

@@ -11,11 +11,6 @@ pipeline {
     }
     stage('Test'){
       parallel {
-        stage('Unit Test Django 3.0'){
-          steps {
-            sh 'toxtest/bin/tox -e py3.8-django{3.0}'
-          }
-        }
         stage('Unit Test Django 3.1'){
           steps {
             sh 'toxtest/bin/tox -e py3.8-django{3.1}'
@@ -34,6 +29,11 @@ pipeline {
         stage('Unit Test Django 4.1'){
           steps {
             sh 'toxtest/bin/tox -e py3.8-django{4.1}'
+          }
+        }
+        stage('Unit Test Django 4.2'){
+          steps {
+            sh 'toxtest/bin/tox -e py3.8-django{4.2}'
           }
         }
       }

@@ -2,14 +2,16 @@ from __future__ import absolute_import
 
 import json
 
-from six.moves.urllib_parse import urlparse, ParseResult
+from urllib.parse import urlparse, ParseResult
+from datetime import timedelta
 
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect, QueryDict
 from django.utils.translation import gettext as _
 from django.views.generic.base import TemplateView, View
 from django.core.exceptions import ObjectDoesNotExist
-from provider.oauth2.models import Client, Scope
+from provider.oauth2.models import Client
+from provider.utils import now
 from provider import constants
 
 
@@ -396,7 +398,7 @@ class AccessTokenViewBase(AuthUtilMixin, TemplateView):
     Authentication backends used to authenticate a particular client.
     """
 
-    grant_types = ['authorization_code', 'refresh_token', 'password']
+    grant_types = ['authorization_code', 'refresh_token', 'password', 'aws_identity']
     """
     The default grant types supported by this view.
     """
@@ -418,6 +420,14 @@ class AccessTokenViewBase(AuthUtilMixin, TemplateView):
         raise NotImplementedError
 
     def get_password_grant(self, request, data, client):
+        """
+        Return a user associated with this request or an error dict.
+
+        :return: ``tuple`` - ``(True or False, user or error_dict)``
+        """
+        raise NotImplementedError
+
+    def get_aws_grant(self, request, data, client):
         """
         Return a user associated with this request or an error dict.
 
@@ -569,6 +579,16 @@ class AccessTokenViewBase(AuthUtilMixin, TemplateView):
 
         return self.access_token_response(at)
 
+    def aws_identity(self, request, data, client):
+        data = self.get_aws_grant(request, data, client)
+        account = data.get('awsaccount')
+        scope = list(account.scope.all())
+
+        at = self.create_access_token(request, account.get_or_create_user(), scope, account.client)
+        at.expires = now() + timedelta(seconds=account.max_token_lifetime)
+        at.save()
+        return self.access_token_response(at)
+
     def get_handler(self, grant_type):
         """
         Return a function or method that is capable handling the ``grant_type``
@@ -581,6 +601,8 @@ class AccessTokenViewBase(AuthUtilMixin, TemplateView):
             return self.refresh_token
         elif grant_type == 'password':
             return self.password
+        elif grant_type == 'aws_identity':
+            return self.aws_identity
         return None
 
     def get(self, request):
@@ -614,7 +636,7 @@ class AccessTokenViewBase(AuthUtilMixin, TemplateView):
 
         client = self.authenticate(request)
 
-        if client is None:
+        if client is None and grant_type != 'aws_identity':
             return self.error_response({'error': 'invalid_client'})
 
         handler = self.get_handler(grant_type)
