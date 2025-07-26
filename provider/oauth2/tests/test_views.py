@@ -723,7 +723,7 @@ class DeleteExpiredTest(BaseOAuth2TestCase):
             'client_id': self.get_client().client_id,
             'client_secret': self.get_client().client_secret,
             'code': code})
-        self.assertEquals(200, response.status_code)
+        self.assertEqual(200, response.status_code)
         token = json.loads(response.content)
         self.assertTrue('access_token' in token)
         access_token = token['access_token']
@@ -748,9 +748,9 @@ class DeleteExpiredTest(BaseOAuth2TestCase):
         self.assertEqual(200, response.status_code)
         token = json.loads(response.content)
         self.assertTrue('access_token' in token)
-        self.assertNotEquals(access_token, token['access_token'])
+        self.assertNotEqual(access_token, token['access_token'])
         self.assertTrue('refresh_token' in token)
-        self.assertNotEquals(refresh_token, token['refresh_token'])
+        self.assertNotEqual(refresh_token, token['refresh_token'])
 
         # make sure the orig AccessToken and RefreshToken are gone
         self.assertFalse(AccessToken.objects.filter(token=access_token)
