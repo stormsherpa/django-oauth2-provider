@@ -39,6 +39,38 @@
     },
     {
         "fields": {
+            "redirect_uri": "http://example.com/application/4/",
+            "client_id": "d6d7369c815d6d22e3dd",
+            "client_secret": "ebb3b29293b87b72306b71b2899672b76dc8735b",
+            "client_type": 2,
+            "url": "http://example.com/",
+            "user": 2,
+            "auto_authorize": true,
+            "allow_public_token": true,
+            "authorize_every_time": false,
+            "allow_plain_pkce": false
+        },
+        "model": "oauth2.client",
+        "pk": 4
+    },
+    {
+        "fields": {
+            "redirect_uri": "http://example.com/application/5/",
+            "client_id": "3d3f0f3a05923de9d840",
+            "client_secret": "df3cb008dd5ec208be023472556906c91e50be60",
+            "client_type": 2,
+            "url": "http://example.com/",
+            "user": 2,
+            "auto_authorize": true,
+            "allow_public_token": true,
+            "authorize_every_time": false,
+            "allow_plain_pkce": true
+        },
+        "model": "oauth2.client",
+        "pk": 5
+    },
+    {
+        "fields": {
             "date_joined": "2012-01-23 05:44:17", 
             "email": "test-1@example.com", 
             "first_name": "", 

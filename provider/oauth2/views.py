@@ -151,6 +151,8 @@ class AuthorizeView(AuthUtilMixin, TemplateView):
     template_name = 'provider/authorize.html'
 
     def get_request_form(self, client, data):
+        if client.client_type == constants.PKCE:
+            return forms.AuthorizationPkceRequestForm(data, client=client)
         return forms.AuthorizationRequestForm(data, client=client)
 
     def get_authorization_form(self, request, client, data, client_data):
@@ -186,15 +188,13 @@ class AuthorizeView(AuthUtilMixin, TemplateView):
 
         grant = form.save(user=request.user,
                           client=client,
-                          redirect_uri=client_data.get('redirect_uri', ''))
+                          redirect_uri=client_data.get('redirect_uri', ''),
+                          code_challenge=client_data.get('code_challenge'),
+                          code_challenge_method=client_data.get('code_challenge_method'))
 
         if grant is None:
             return None
 
-        grant.user = request.user
-        grant.client = client
-        grant.redirect_uri = client_data.get('redirect_uri', '')
-        grant.save()
         return grant.code
 
     def _validate_client(self, request, data):
@@ -280,6 +280,7 @@ class AuthorizeView(AuthUtilMixin, TemplateView):
         # be sure to serialize any objects that aren't natively json
         # serializable because these values are stored as session data
         data['scope'] = scope_list
+        data['client_id'] = client.client_id  # Add this back in, it gets lost sometimes
         self.cache_data(request, data)
         self.cache_data(request, code, "code")
         self.cache_data(request, client.pk, "client_pk")
@@ -375,6 +376,7 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
     authentication = (
         backends.BasicClientBackend,
         backends.RequestParamsClientBackend,
+        backends.PkceRequestParamsClientBackend,
         backends.PublicPasswordBackend,
         backends.PublicClientBackend,
     )
@@ -588,7 +590,7 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
             return self.aws_identity
         return None
 
-    def get(self, request):
+    def get(self, request, *args, **kwargs):
         """
         As per :rfc:`3.2` the token endpoint *only* supports POST requests.
         Returns an error response.
