@@ -4,6 +4,9 @@ implement these models with fields and and methods to be compatible with the
 views in :attr:`provider.views`.
 """
 
+from base64 import urlsafe_b64encode
+from hashlib import sha256
+
 from django.db import models
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -43,13 +46,17 @@ class Client(models.Model):
     authorize_every_time = models.BooleanField(default=False, blank=True)
     allow_public_token = models.BooleanField(default=False, blank=True,
                                              help_text="Allow public client tokens with only client_id and code")
+    allow_plain_pkce = models.BooleanField(default=False, blank=True,
+                                           help_text="Allow code_challenge_method=plain for PKCE")
+    token_expiry = models.IntegerField(blank=True, null=True,
+                                       help_text="Token expiration timeout. Defaults to OAUTH_EXPIRE_DELTA_PUBLIC or OAUTH_EXPIRE_DELTA")
 
-    def __unicode__(self):
+    def __str__(self):
         return self.redirect_uri
 
     def get_default_token_expiry(self):
         public = (self.client_type == constants.PUBLIC)
-        return get_token_expiry(public)
+        return self.token_expiry or get_token_expiry(public)
 
     class Meta:
         app_label = 'oauth2'
@@ -60,7 +67,7 @@ class Scope(models.Model):
     name = models.CharField(max_length=50, primary_key=True)
     description = models.CharField(max_length=256, default='', blank=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
     class Meta:
@@ -130,13 +137,25 @@ class Grant(models.Model):
     expires = models.DateTimeField(default=get_code_expiry)
     redirect_uri = models.CharField(max_length=255, blank=True)
     scope = models.ManyToManyField('Scope')
+    code_challenge = models.CharField(max_length=255, blank=True, null=True)
+    code_challenge_method = models.CharField(max_length=20, blank=True, null=True)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.code
 
     class Meta:
         app_label = 'oauth2'
         db_table = 'oauth2_grant'
+
+    def verify_code_challenge(self, code_verifier):
+        if not code_verifier:
+            return False
+        if self.code_challenge_method == 'plain':
+            return code_verifier == self.code_challenge
+        else:
+            verifier_digest = sha256(code_verifier.encode('ASCII')).digest()
+            expected = urlsafe_b64encode(verifier_digest).decode()
+            return expected == self.code_challenge
 
 
 class AccessTokenManager(models.Manager):
@@ -189,7 +208,7 @@ class AccessToken(models.Model):
 
     objects = AccessTokenManager()
 
-    def __unicode__(self):
+    def __str__(self):
         return self.token
 
     def save(self, *args, **kwargs):
@@ -259,7 +278,7 @@ class RefreshToken(models.Model):
 
     objects = RefreshTokenManager()
 
-    def __unicode__(self):
+    def __str__(self):
         return self.token
 
     class Meta:

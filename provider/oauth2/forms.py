@@ -9,7 +9,7 @@ from django.contrib.auth import authenticate
 from django.conf import settings
 from django.utils.translation import gettext as _
 from django.utils import timezone
-from provider.constants import RESPONSE_TYPE_CHOICES, SCOPES, PUBLIC
+from provider.constants import RESPONSE_TYPE_CHOICES, PKCE, PUBLIC
 from provider.forms import OAuthForm, OAuthValidationError
 from provider.utils import now, ArnHelper
 from provider.oauth2.models import Client, Grant, RefreshToken, Scope
@@ -52,6 +52,34 @@ class ClientAuthForm(forms.Form):
 
         data['client'] = client
         return data
+
+
+class PkceClientAuthForm(forms.Form):
+    """
+    Client authentication form. Required to make sure that we're dealing with a
+    real client. Form is used in :attr:`provider.oauth2.backends` to validate
+    the client.
+    """
+    client_id = forms.CharField()
+    code_verifier = forms.CharField()
+    code = forms.CharField()
+
+    def clean(self):
+        data = self.cleaned_data
+        try:
+            client = Client.objects.get(client_id=data.get('client_id'), client_type=PKCE)
+            grant = Grant.objects.get(client=client, code=data.get('code'))
+            if not grant.verify_code_challenge(data.get('code_verifier')):
+                raise forms.ValidationError(_("Invalid PKCE grant"))
+
+        except Client.DoesNotExist:
+            raise forms.ValidationError(_("Client does not support PKCE"))
+        except Grant.DoesNotExist:
+            raise forms.ValidationError(_("Invalid PKCE grant"))
+
+        data['client'] = client
+        return data
+
 
 
 class ScopeModelChoiceField(forms.ModelMultipleChoiceField):
@@ -157,6 +185,35 @@ class AuthorizationRequestForm(ScopeModelMixin, OAuthForm):
         return redirect_uri
 
 
+class AuthorizationPkceRequestForm(AuthorizationRequestForm):
+    code_challenge = forms.CharField(required=False)
+    code_challenge_method = forms.CharField(required=False)
+
+    def clean_code_challenge(self):
+        code_challenge = self.cleaned_data.get('code_challenge')
+        if not code_challenge:
+            raise OAuthValidationError({
+                'error': 'invalid_request',
+                'error_description': _("No 'code_challenge' supplied"),
+            })
+        return code_challenge
+
+    def clean_code_challenge_method(self):
+        method = self.cleaned_data.get('code_challenge_method') or 'plain'
+        if method not in ['plain', 'S256']:
+            raise OAuthValidationError({
+                'error': 'invalid_request',
+                'error_description': f"{method} is not a supported code_challenge_method",
+            })
+        if method == 'plain' and not self.client.allow_plain_pkce:
+            raise OAuthValidationError({
+                'error': 'invalid_request',
+                'error_description': 'client does not allow code_challenge_method=plain',
+            })
+        return method
+
+
+
 class AuthorizationForm(ScopeModelMixin, OAuthForm):
     """
     A form used to ask the resource owner for authorization of a given client.
@@ -222,6 +279,7 @@ class AuthorizationCodeGrantForm(ScopeModelMixin, OAuthForm):
     """
     code = forms.CharField(required=False)
     scope = ScopeModelChoiceField(queryset=Scope.objects.all(), required=False)
+    code_verifier = forms.CharField(required=False)
 
     def clean_code(self):
         code = self.cleaned_data.get('code')

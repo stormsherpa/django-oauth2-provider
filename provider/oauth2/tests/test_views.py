@@ -43,6 +43,12 @@ class BaseOAuth2TestCase(TestCase):
     def get_public_client(self):
         return Client.objects.get(id=3)
 
+    def get_pkce_client(self):
+        return Client.objects.get(id=4)
+
+    def get_pkce_plain_client(self):
+        return Client.objects.get(id=5)
+
     def get_grant(self):
         return Grant.objects.all()[0]
 
@@ -205,6 +211,57 @@ class AuthorizationTest(BaseOAuth2TestCase):
         self.assertFalse('error' in response['Location'])
         self.assertTrue('code' in response['Location'])
         self.assertTrue('state=abc' in response['Location'])
+
+    def test_pkce_authorization_is_granted(self):
+        code_verifier = '8d6e7d6d3375bc536fb276ca1e3feebba6f29dd4'
+        code_challenge = 'cvbVJuj0KkRIpHMCkBOsZojlbqMhu-H7jkXx9U6E_3Y='
+
+        self.login()
+        def url_func():
+            return self.auth_url() + '?client_id={}&response_type=code&state=abc&code_challenge={}&code_challenge_method=S256'.format(
+                self.get_pkce_client().client_id, code_challenge,
+            )
+
+        self._login_and_authorize(url_func)
+
+        response = self.client.get(self.redirect_url())
+        self.assertEqual(302, response.status_code)
+        self.assertFalse('error' in response['Location'])
+        self.assertTrue('code' in response['Location'])
+
+    def test_pkce_authorization_plain_prohibited(self):
+        code_verifier = '8d6e7d6d3375bc536fb276ca1e3feebba6f29dd4'
+        code_challenge = 'cvbVJuj0KkRIpHMCkBOsZojlbqMhu-H7jkXx9U6E_3Y='
+
+        self.login()
+        def url_func():
+            return self.auth_url() + '?client_id={}&response_type=code&state=abc&code_challenge={}'.format(
+                self.get_pkce_client().client_id, code_verifier,
+            )
+
+        response = self.client.get(url_func())
+        response = self.client.get(self.auth_url2())
+        response = self.client.post(self.auth_url2(), {'authorize': True, 'scope': 'read'})
+
+        self.assertEqual(400, response.status_code)
+        self.assertIn('client does not allow code_challenge_method=plain', response.content.decode())
+
+    def test_pkce_plain_authorization_is_granted(self):
+        code_verifier = '8d6e7d6d3375bc536fb276ca1e3feebba6f29dd4'
+        code_challenge = 'cvbVJuj0KkRIpHMCkBOsZojlbqMhu-H7jkXx9U6E_3Y='
+
+        self.login()
+        def url_func():
+            return self.auth_url() + '?client_id={}&response_type=code&state=abc&code_challenge={}'.format(
+                self.get_pkce_plain_client().client_id, code_verifier,
+            )
+
+        self._login_and_authorize(url_func)
+
+        response = self.client.get(self.redirect_url())
+        self.assertEqual(302, response.status_code)
+        self.assertFalse('error' in response['Location'])
+        self.assertTrue('code' in response['Location'])
 
     # # FIXME: Not sure what the error condition is that should exist here.
     # def test_redirect_requires_valid_data(self):
@@ -580,6 +637,108 @@ class AccessTokenTest(BaseOAuth2TestCase):
         self.assertEqual(200, response.status_code)
         self.assertNotIn('refresh_token', json.loads(response.content))
 
+    def test_access_token_pkce_client(self):
+        required_props = ['access_token', 'token_type', 'refresh_token']
+
+        code_verifier = '8d6e7d6d3375bc536fb276ca1e3feebba6f29dd4'
+        code_challenge = 'cvbVJuj0KkRIpHMCkBOsZojlbqMhu-H7jkXx9U6E_3Y='
+
+        self.login()
+        def url_func():
+            return self.auth_url() + '?client_id={}&response_type=code&state=abc&code_challenge={}&code_challenge_method=S256'.format(
+                self.get_pkce_client().client_id, code_challenge,
+            )
+
+        self._login_and_authorize(url_func=url_func)
+
+        response = self.client.get(self.redirect_url())
+        query = QueryDict(urlparse(response['Location']).query)
+        code = query['code']
+
+        response = self.client.post(self.access_token_url(), {
+            'grant_type': 'authorization_code',
+            'client_id': self.get_pkce_client().client_id,
+            'code_verifier': code_verifier,
+            'code': code})
+
+        self.assertEqual(200, response.status_code, response.content)
+
+        token = json.loads(response.content)
+
+        for prop in required_props:
+            self.assertIn(prop, token, "Access token response missing "
+                    "required property: %s" % prop)
+
+        return token
+
+    def test_access_token_pkce_plain_client(self):
+        required_props = ['access_token', 'token_type']
+
+        code_verifier = '8d6e7d6d3375bc536fb276ca1e3feebba6f29dd4'
+        code_challenge = 'cvbVJuj0KkRIpHMCkBOsZojlbqMhu-H7jkXx9U6E_3Y='
+
+        self.login()
+        def url_func():
+            return self.auth_url() + '?client_id={}&response_type=code&state=abc&code_challenge={}'.format(
+                self.get_pkce_plain_client().client_id, code_verifier,
+            )
+
+        self._login_and_authorize(url_func=url_func)
+
+        response = self.client.get(self.redirect_url())
+        query = QueryDict(urlparse(response['Location']).query)
+        code = query['code']
+
+        response = self.client.post(self.access_token_url(), {
+            'grant_type': 'authorization_code',
+            'client_id': self.get_pkce_plain_client().client_id,
+            'code_verifier': code_verifier,
+            'code': code})
+
+        self.assertEqual(200, response.status_code, response.content)
+
+        token = json.loads(response.content)
+
+        for prop in required_props:
+            self.assertIn(prop, token, "Access token response missing "
+                    "required property: %s" % prop)
+
+        return token
+
+    def test_access_token_pkce_plain_client_with_S256(self):
+        required_props = ['access_token', 'token_type']
+
+        code_verifier = '8d6e7d6d3375bc536fb276ca1e3feebba6f29dd4'
+        code_challenge = 'cvbVJuj0KkRIpHMCkBOsZojlbqMhu-H7jkXx9U6E_3Y='
+
+        self.login()
+        def url_func():
+            return self.auth_url() + '?client_id={}&response_type=code&state=abc&code_challenge={}&code_challenge_method=S256'.format(
+                self.get_pkce_plain_client().client_id, code_challenge,
+            )
+
+        self._login_and_authorize(url_func=url_func)
+
+        response = self.client.get(self.redirect_url())
+        query = QueryDict(urlparse(response['Location']).query)
+        code = query['code']
+
+        response = self.client.post(self.access_token_url(), {
+            'grant_type': 'authorization_code',
+            'client_id': self.get_pkce_plain_client().client_id,
+            'code_verifier': code_verifier,
+            'code': code})
+
+        self.assertEqual(200, response.status_code, response.content)
+
+        token = json.loads(response.content)
+
+        for prop in required_props:
+            self.assertIn(prop, token, "Access token response missing "
+                    "required property: %s" % prop)
+
+        return token
+
 
 class AuthBackendTest(BaseOAuth2TestCase):
     fixtures = ['test_oauth2']
@@ -723,7 +882,7 @@ class DeleteExpiredTest(BaseOAuth2TestCase):
             'client_id': self.get_client().client_id,
             'client_secret': self.get_client().client_secret,
             'code': code})
-        self.assertEquals(200, response.status_code)
+        self.assertEqual(200, response.status_code)
         token = json.loads(response.content)
         self.assertTrue('access_token' in token)
         access_token = token['access_token']
@@ -748,9 +907,9 @@ class DeleteExpiredTest(BaseOAuth2TestCase):
         self.assertEqual(200, response.status_code)
         token = json.loads(response.content)
         self.assertTrue('access_token' in token)
-        self.assertNotEquals(access_token, token['access_token'])
+        self.assertNotEqual(access_token, token['access_token'])
         self.assertTrue('refresh_token' in token)
-        self.assertNotEquals(refresh_token, token['refresh_token'])
+        self.assertNotEqual(refresh_token, token['refresh_token'])
 
         # make sure the orig AccessToken and RefreshToken are gone
         self.assertFalse(AccessToken.objects.filter(token=access_token)
