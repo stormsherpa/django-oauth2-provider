@@ -14,9 +14,7 @@ readme = 'README.rst'
 maintainers = [
     {name="Shaun Kruger", email="shaun.kruger@gmail.com"}
 ]
-requires-python = ">=3.9"
-license-files=["LICENSE"]
-#platforms='all'
+requires-python = ">=3.8"
 classifiers=[
     'Environment :: Web Environment',
     'Intended Audience :: Developers',
