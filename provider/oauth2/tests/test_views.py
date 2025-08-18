@@ -8,14 +8,16 @@ from django.http import QueryDict
 from django.conf import settings
 from django.shortcuts import reverse
 from django.utils.html import escape
+from django.utils import timezone
 from django.test import TestCase
 from django.contrib.auth.models import User
+
 from provider import constants, scope
 from provider.compat import skipIfCustomUser
 from provider.templatetags.scope import scopes
 from provider.utils import now as date_now
 from provider.oauth2.forms import ClientForm
-from provider.oauth2.models import Client, Grant, AccessToken, RefreshToken, AuthorizedClient, AwsAccount
+from provider.oauth2.models import Client, Grant, AccessToken, RefreshToken, AuthorizedClient, AwsAccount, ClientSecret
 from provider.oauth2.backends import BasicClientBackend, RequestParamsClientBackend
 from provider.oauth2.backends import AccessTokenBackend
 
@@ -754,6 +756,69 @@ class AuthBackendTest(BaseOAuth2TestCase):
 
         self.assertEqual(BasicClientBackend().authenticate(request).id,
                          2, "Didn't return the right client.")
+
+    def test_basic_client_backend_empty_secret(self):
+        request = type('Request', (object,), {'META': {}})()
+        client = self.get_client()
+        client.client_secret = ""
+        client.save()
+
+        user_pass = "{0}:{1}".format(
+            self.get_client().client_id,
+            ""
+        )
+        user_pass64 = base64.b64encode(user_pass.encode('utf8')).decode('utf8')
+        request.META['HTTP_AUTHORIZATION'] = "Basic {}".format(user_pass64)
+
+        self.assertIsNone(BasicClientBackend().authenticate(request),
+                          "Client should not have loaded.")
+
+    def test_basic_client_backend_secure_secret_no_expire(self):
+        client = self.get_client()
+        client_secret, secret_string = ClientSecret.objects.new_random_secret(client)
+
+        request = type('Request', (object,), {'META': {}})()
+        user_pass = "{0}:{1}".format(
+            self.get_client().client_id,
+            secret_string,
+        )
+        user_pass64 = base64.b64encode(user_pass.encode('utf8')).decode('utf8')
+        request.META['HTTP_AUTHORIZATION'] = "Basic {}".format(user_pass64)
+
+        self.assertEqual(BasicClientBackend().authenticate(request).id,
+                         2, "Didn't return the right client.")
+
+    def test_basic_client_backend_secure_secret_expire_future(self):
+        next_month = timezone.now() + datetime.timedelta(days=30)
+        client = self.get_client()
+        client_secret, secret_string = ClientSecret.objects.new_random_secret(client, expiration_date=next_month.date())
+
+        request = type('Request', (object,), {'META': {}})()
+        user_pass = "{0}:{1}".format(
+            self.get_client().client_id,
+            secret_string,
+        )
+        user_pass64 = base64.b64encode(user_pass.encode('utf8')).decode('utf8')
+        request.META['HTTP_AUTHORIZATION'] = "Basic {}".format(user_pass64)
+
+        self.assertEqual(BasicClientBackend().authenticate(request).id,
+                         2, "Didn't return the right client.")
+
+    def test_basic_client_backend_secure_secret_expire_past(self):
+        last_month = timezone.now() - datetime.timedelta(days=30)
+        client = self.get_client()
+        client_secret, secret_string = ClientSecret.objects.new_random_secret(client, expiration_date=last_month.date())
+
+        request = type('Request', (object,), {'META': {}})()
+        user_pass = "{0}:{1}".format(
+            self.get_client().client_id,
+            secret_string,
+        )
+        user_pass64 = base64.b64encode(user_pass.encode('utf8')).decode('utf8')
+        request.META['HTTP_AUTHORIZATION'] = "Basic {}".format(user_pass64)
+
+        self.assertIsNone(BasicClientBackend().authenticate(request),
+                          "Client should not have loaded.")
 
     def test_request_params_client_backend(self):
         request = type('Request', (object,), {'REQUEST': {}})()
