@@ -95,3 +95,15 @@ class ArnHelper:
             return True
 
         return False
+
+
+class TokenContainer:
+    def __init__(self, at_secret, at):
+        self.access_token = at
+        self.access_token_secret = at_secret
+        self.refresh_token = None
+        self.refresh_token_secret = None
+
+    def add_refresh_token(self, rt_secret, rt):
+        self.refresh_token = rt
+        self.refresh_token_secret = rt_secret

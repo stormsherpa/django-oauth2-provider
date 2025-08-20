@@ -957,10 +957,8 @@ class DeleteExpiredTest(BaseOAuth2TestCase):
         # make sure the grant is gone
         self.assertFalse(Grant.objects.filter(code=code).exists())
         # and verify that the AccessToken and RefreshToken exist
-        self.assertTrue(AccessToken.objects.filter(token=access_token)
-                        .exists())
-        self.assertTrue(RefreshToken.objects.filter(token=refresh_token)
-                        .exists())
+        self.assertIsInstance(AccessToken.objects.get_token(token=access_token), AccessToken)
+        self.assertIsInstance(RefreshToken.objects.get_token(token=refresh_token), RefreshToken)
 
         # refresh the token
         response = self.client.post(self.access_token_url(), {

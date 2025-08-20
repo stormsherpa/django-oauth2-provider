@@ -260,8 +260,8 @@ class RefreshTokenGrantForm(ScopeModelMixin, OAuthForm):
             raise OAuthValidationError({'error': 'invalid_request'})
 
         try:
-            token = RefreshToken.objects.get_by_token(token=token,
-                expired=False, client=self.client)
+            token = RefreshToken.objects.get_token(token=token,
+                                                   expired=False, client=self.client)
         except RefreshToken.DoesNotExist:
             raise OAuthValidationError({'error': 'invalid_grant'})
 

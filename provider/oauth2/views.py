@@ -3,15 +3,15 @@ import logging
 from datetime import timedelta
 from urllib.parse import urlparse, ParseResult
 
+from django.contrib.auth.hashers import make_password
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect, QueryDict
 from django.shortcuts import reverse
 from django.views.generic import TemplateView, View
-from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import gettext as _
 
 from provider import constants
-from provider.utils import now, ArnHelper
+from provider.utils import now, TokenContainer, long_token
 from provider.oauth2 import forms
 from provider.oauth2 import models
 from provider.oauth2 import backends
@@ -423,32 +423,32 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
         data['awsaccount'] = account
         return data
 
-    def get_access_token(self, request, user, scope, client):
-        try:
-            # Attempt to fetch an existing access token.
-            at = models.AccessToken.objects.get_scoped_token(user, client, scope)
-        except models.AccessToken.DoesNotExist:
-            # None found... make a new one!
-            at = self.create_access_token(request, user, scope, client)
-            if client.client_type != constants.PUBLIC:
-                self.create_refresh_token(request, user, scope, at, client)
-        return at
-
     def create_access_token(self, request, user, scope, client):
+        access_secret = long_token()
+        access_token = make_password(access_secret)
         at = models.AccessToken.objects.create(
             user=user,
             client=client,
+            token=access_token,
+            token_first6=access_secret[:6],
         )
         for s in scope:
             at.scope.add(s)
-        return at
+        return TokenContainer(access_secret, at)
 
     def create_refresh_token(self, request, user, scope, access_token, client):
-        return models.RefreshToken.objects.create(
+        refresh_secret = long_token()
+        refresh_token = make_password(refresh_secret)
+
+        rt = models.RefreshToken.objects.create(
             user=user,
-            access_token=access_token,
+            access_token=access_token.access_token,
             client=client,
+            token=refresh_token,
+            token_first6=refresh_secret[:6],
         )
+        access_token.add_refresh_token(refresh_secret, rt)
+        return rt
 
     def invalidate_grant(self, grant):
         if constants.DELETE_EXPIRED:
@@ -485,21 +485,17 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
         Returns a successful response after creating the access token
         as defined in :rfc:`5.1`.
         """
-
         response_data = {
-            'access_token': access_token.token,
+            'access_token': access_token.access_token.token,
             'token_type': constants.TOKEN_TYPE,
-            'expires_in': access_token.get_expire_delta(),
-            'scope': access_token.get_scope_string(),
+            'expires_in': access_token.access_token.get_expire_delta(),
+            'scope': access_token.access_token.get_scope_string(),
         }
 
         # Not all access_tokens are given a refresh_token
         # (for example, public clients doing password auth)
-        try:
-            rt = access_token.refresh_token
-            response_data['refresh_token'] = rt.token
-        except ObjectDoesNotExist:
-            pass
+        if access_token.refresh_token_secret:
+            response_data['refresh_token'] = access_token.refresh_token_secret
 
         return HttpResponse(
             json.dumps(response_data), content_type='application/json'
@@ -543,8 +539,8 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
         at = self.create_access_token(request, rt.user,
                                       token_scope,
                                       client)
-        rt = self.create_refresh_token(request, at.user,
-                                       at.scope.all(), at, client)
+        rt = self.create_refresh_token(request, at.access_token.user,
+                                       at.access_token.scope.all(), at, client)
 
         return self.access_token_response(at)
 
@@ -570,8 +566,8 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
         scope = list(account.scope.all())
 
         at = self.create_access_token(request, account.get_or_create_user(), scope, account.client)
-        at.expires = now() + timedelta(seconds=account.max_token_lifetime)
-        at.save()
+        at.access_token.expires = now() + timedelta(seconds=account.max_token_lifetime)
+        at.access_token.save()
         return self.access_token_response(at)
 
     def get_handler(self, grant_type):

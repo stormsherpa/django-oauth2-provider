@@ -214,24 +214,12 @@ class Grant(models.Model):
 
 class AccessTokenManager(models.Manager):
     def get_token(self, token):
-        return self.get(token=token, expires__gt=now())
+        filters = dict(expires__gt=now())
+        for candidate in self.filter(token_first6=token[:6], **filters):
+            if check_password(token, candidate.token):
+                return self.get(pk=candidate.pk)
 
-    def get_scoped_token(self, user, client, scope):
-        obj = self.get(user=user, client=client, expires__gt=now())
-        obj_scopes = {s.name for s in obj.scope.all()}
-        req_scopes = {s.name for s in scope}
-        if set(req_scopes).issubset(obj_scopes):
-            return obj
-        raise AccessToken.DoesNotExist
-
-    def create(self, scope=None, *args, **kwargs):
-        obj = super(AccessTokenManager, self).create(*args, **kwargs)
-        obj.save()
-        if not scope:
-            scope = list()
-        for s in scope:
-            obj.scope.add(s)
-        return obj
+        return self.get(token=token, **filters)
 
 
 class AccessToken(models.Model):
@@ -255,6 +243,7 @@ class AccessToken(models.Model):
         expiry
     """
     user = models.ForeignKey(settings.AUTH_USER_MODEL, models.DO_NOTHING)
+    token_first6 = models.CharField(max_length=6, null=True, db_index=True)
     token = models.CharField(max_length=255, default=long_token, db_index=True)
     client = models.ForeignKey('Client', models.DO_NOTHING)
     expires = models.DateTimeField()
@@ -263,7 +252,7 @@ class AccessToken(models.Model):
     objects = AccessTokenManager()
 
     def __str__(self):
-        return self.token
+        return f"{self.token_first6}:{self.token[:25]}"
 
     def save(self, *args, **kwargs):
         if not self.expires:
@@ -309,7 +298,10 @@ class RefreshTokenManager(models.Manager):
             obj.scope.add(s)
         return obj
 
-    def get_by_token(self, token, **filters):
+    def get_token(self, token, **filters):
+        for candidate in self.filter(token_first6=token[:6], **filters):
+            if check_password(token, candidate.token):
+                return self.get(pk=candidate.pk)
         return self.get(token=token, **filters)
 
 
@@ -327,6 +319,7 @@ class RefreshToken(models.Model):
     * :attr:`expired` - ``boolean``
     """
     user = models.ForeignKey(settings.AUTH_USER_MODEL, models.DO_NOTHING)
+    token_first6 = models.CharField(max_length=6, null=True, db_index=True)
     token = models.CharField(max_length=255, default=long_token)
     access_token = models.OneToOneField('AccessToken', models.DO_NOTHING,
             related_name='refresh_token')
@@ -336,7 +329,7 @@ class RefreshToken(models.Model):
     objects = RefreshTokenManager()
 
     def __str__(self):
-        return self.token
+        return f"{self.token_first6}:{self.token[:25]}"
 
     class Meta:
         app_label = 'oauth2'
