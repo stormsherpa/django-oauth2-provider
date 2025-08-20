@@ -59,11 +59,6 @@ pipeline {
     }
     stage('Test 3.13'){
       parallel {
-        stage('Unit Test Django 4.0'){
-          steps {
-            sh 'toxtest/bin/tox -e py313-django{40}'
-          }
-        }
         stage('Unit Test Django 4.1'){
           steps {
             sh 'toxtest/bin/tox -e py313-django{41}'
