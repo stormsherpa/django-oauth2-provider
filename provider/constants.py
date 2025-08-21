@@ -41,4 +41,5 @@ ENFORCE_SECURE = getattr(settings, 'OAUTH_ENFORCE_SECURE', False)
 ENFORCE_CLIENT_SECURE = getattr(settings, 'OAUTH_ENFORCE_CLIENT_SECURE', True)
 
 SESSION_KEY = getattr(settings, 'OAUTH_SESSION_KEY', 'oauth')
-
+TOKEN_PREFIX_LENGTH = getattr(settings, 'OAUTH_TOKEN_PREFIX_LENGTH', 4)
+assert 0 < TOKEN_PREFIX_LENGTH <= 10, "OAUTH_TOKEN_PREFIX_LENGTH must be 10 or less"

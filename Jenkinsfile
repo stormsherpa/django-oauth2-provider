@@ -9,26 +9,109 @@ pipeline {
         sh 'toxtest/bin/pip install tox==3.28.0 setuptools pathlib2'
       }
     }
-    stage('Test'){
+    stage('Test 3.11'){
       parallel {
         stage('Unit Test Django 3.2'){
           steps {
-            sh 'toxtest/bin/tox -e py3.12-django{3.2}'
+            sh 'toxtest/bin/tox -e py311-django{32}'
           }
         }
         stage('Unit Test Django 4.0'){
           steps {
-            sh 'toxtest/bin/tox -e py3.12-django{4.0}'
+            sh 'toxtest/bin/tox -e py311-django{40}'
           }
         }
         stage('Unit Test Django 4.1'){
           steps {
-            sh 'toxtest/bin/tox -e py3.12-django{4.1}'
+            sh 'toxtest/bin/tox -e py311-django{41}'
           }
         }
         stage('Unit Test Django 4.2'){
           steps {
-            sh 'toxtest/bin/tox -e py3.12-django{4.2}'
+            sh 'toxtest/bin/tox -e py311-django{42}'
+          }
+        }
+        stage('Unit Test Django 5.0'){
+          steps {
+            sh 'toxtest/bin/tox -e py311-django{50}'
+          }
+        }
+        stage('Unit Test Django 5.1'){
+          steps {
+            sh 'toxtest/bin/tox -e py311-django{51}'
+          }
+        }
+        stage('Unit Test Django 5.2'){
+          steps {
+            sh 'toxtest/bin/tox -e py311-django{52}'
+          }
+        }
+      }
+    }
+    stage('Test 3.12'){
+      parallel {
+        stage('Unit Test Django 3.2'){
+          steps {
+            sh 'toxtest/bin/tox -e py312-django{32}'
+          }
+        }
+        stage('Unit Test Django 4.0'){
+          steps {
+            sh 'toxtest/bin/tox -e py312-django{40}'
+          }
+        }
+        stage('Unit Test Django 4.1'){
+          steps {
+            sh 'toxtest/bin/tox -e py312-django{41}'
+          }
+        }
+        stage('Unit Test Django 4.2'){
+          steps {
+            sh 'toxtest/bin/tox -e py312-django{42}'
+          }
+        }
+        stage('Unit Test Django 5.0'){
+          steps {
+            sh 'toxtest/bin/tox -e py312-django{50}'
+          }
+        }
+        stage('Unit Test Django 5.1'){
+          steps {
+            sh 'toxtest/bin/tox -e py312-django{51}'
+          }
+        }
+        stage('Unit Test Django 5.2'){
+          steps {
+            sh 'toxtest/bin/tox -e py312-django{52}'
+          }
+        }
+      }
+    }
+    stage('Test 3.13'){
+      parallel {
+        stage('Unit Test Django 4.1'){
+          steps {
+            sh 'toxtest/bin/tox -e py313-django{41}'
+          }
+        }
+        stage('Unit Test Django 4.2'){
+          steps {
+            sh 'toxtest/bin/tox -e py313-django{42}'
+          }
+        }
+        stage('Unit Test Django 5.0'){
+          steps {
+            sh 'toxtest/bin/tox -e py313-django{50}'
+          }
+        }
+        stage('Unit Test Django 5.1'){
+          steps {
+            sh 'toxtest/bin/tox -e py313-django{51}'
+          }
+        }
+        stage('Unit Test Django 5.2'){
+          steps {
+            sh 'toxtest/bin/tox -e py313-django{52}'
           }
         }
       }

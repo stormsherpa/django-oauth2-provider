@@ -1,7 +1,9 @@
 import hashlib
 import shortuuid
 from django.conf import settings
-from provider.constants import EXPIRE_DELTA, EXPIRE_DELTA_PUBLIC, EXPIRE_CODE_DELTA
+from django.contrib.auth.hashers import make_password
+
+from provider.constants import EXPIRE_DELTA, EXPIRE_DELTA_PUBLIC, EXPIRE_CODE_DELTA, TOKEN_PREFIX_LENGTH
 
 from django.utils import timezone
 
@@ -50,6 +52,16 @@ def get_code_expiry():
     return now() + EXPIRE_CODE_DELTA
 
 
+def client_secret_description():
+    return f"Secret created {now().date()}"
+
+
+def make_client_secret():
+    new_secret = long_token()
+    secret_hash = make_password(new_secret)
+    return new_secret, new_secret[:6], secret_hash
+
+
 class BadArn(Exception):
     pass
 
@@ -83,3 +95,15 @@ class ArnHelper:
             return True
 
         return False
+
+
+class TokenContainer:
+    def __init__(self, at_secret, at):
+        self.access_token = at
+        self.access_token_secret = at_secret
+        self.refresh_token = None
+        self.refresh_token_secret = None
+
+    def add_refresh_token(self, rt_secret, rt):
+        self.refresh_token = rt
+        self.refresh_token_secret = rt_secret

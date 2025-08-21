@@ -42,7 +42,7 @@ class OAuthForm(forms.Form):
     """
     def __init__(self, *args, **kwargs):
         self.client = kwargs.pop('client', None)
-        super(OAuthForm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def _clean_fields(self):
         """
@@ -50,7 +50,7 @@ class OAuthForm(forms.Form):
         instead of validating each field.
         """
         try:
-            super(OAuthForm, self)._clean_fields()
+            super()._clean_fields()
         except OAuthValidationError as e:
             self._errors.update(e.args[0])
 
@@ -59,6 +59,6 @@ class OAuthForm(forms.Form):
         Overriding the default cleaning behaviour for a shallow error dict.
         """
         try:
-            super(OAuthForm, self)._clean_form()
+            super()._clean_form()
         except OAuthValidationError as e:
             self._errors.update(e.args[0])

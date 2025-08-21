@@ -11,8 +11,8 @@ from django.utils.translation import gettext as _
 from django.utils import timezone
 from provider.constants import RESPONSE_TYPE_CHOICES, PKCE, PUBLIC
 from provider.forms import OAuthForm, OAuthValidationError
-from provider.utils import now, ArnHelper
-from provider.oauth2.models import Client, Grant, RefreshToken, Scope
+from provider.utils import now, ArnHelper, make_client_secret
+from provider.oauth2.models import Client, Grant, RefreshToken, Scope, ClientSecret
 
 log = logging.getLogger('provider.oauth2')
 
@@ -42,13 +42,26 @@ class ClientAuthForm(forms.Form):
     client_secret = forms.CharField()
 
     def clean(self):
+
         data = self.cleaned_data
+        client = None
         try:
-            client = Client.objects.get(client_id=data.get('client_id'),
-                client_secret=data.get('client_secret'))
+            client = Client.objects.get(
+                client_id=data.get('client_id'),
+                client_secret=data.get('client_secret'),
+            )
         except Client.DoesNotExist:
-            raise forms.ValidationError(_("Client could not be validated with "
-                "key pair."))
+            try:
+                client_secret = ClientSecret.objects.get_by_secret(
+                    data.get('client_id'),
+                    data.get('client_secret'),
+                )
+                client = client_secret.client
+            except ClientSecret.DoesNotExist:
+                pass
+
+        if not client:
+            raise forms.ValidationError(_("Client could not be validated with key pair."))
 
         data['client'] = client
         return data
@@ -247,8 +260,8 @@ class RefreshTokenGrantForm(ScopeModelMixin, OAuthForm):
             raise OAuthValidationError({'error': 'invalid_request'})
 
         try:
-            token = RefreshToken.objects.get(token=token,
-                expired=False, client=self.client)
+            token = RefreshToken.objects.get_token(token=token,
+                                                   expired=False, client=self.client)
         except RefreshToken.DoesNotExist:
             raise OAuthValidationError({'error': 'invalid_grant'})
 
@@ -462,3 +475,19 @@ class PublicClientForm(OAuthForm):
         data['client'] = client
         data['grant'] = grant
         return data
+
+
+class ClientSecretAdminCreateForm(forms.ModelForm):
+    class Meta:
+        model = ClientSecret
+        fields = ['description', 'client', 'expiration_date']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.plain_client_secret = None
+        if not self.instance.secret_prefix or not self.instance.secret_hash:
+            new_secret, prefix, secret_hash = make_client_secret()
+            self.plain_client_secret = new_secret
+            self.instance.secret_prefix = prefix
+            self.instance.secret_hash = secret_hash

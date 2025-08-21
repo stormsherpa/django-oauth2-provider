@@ -80,7 +80,7 @@
             "is_superuser": true, 
             "last_login": "2012-01-23 05:52:32", 
             "last_name": "", 
-            "password": "sha1$da29e$498b9faab2d002183bc1d874689634b0e15ad6d7", 
+            "password": "pbkdf2_sha256$600000$X9VBl26TIACb4rC7RYDXVa$/MgXp49qusu4+nPJ6BAMf0ti8iR3dLt4DnAchmA5FUo=",
             "user_permissions": [], 
             "username": "test-user-1"
         }, 
@@ -98,7 +98,7 @@
             "is_superuser": false, 
             "last_login": "2012-01-23 05:53:31", 
             "last_name": "", 
-            "password": "sha1$0cf1b$d66589690edd96b410170fcae5cc2bdfb68821e7", 
+            "password": "pbkdf2_sha256$600000$X9VBl26TIACb4rC7RYDXVa$/MgXp49qusu4+nPJ6BAMf0ti8iR3dLt4DnAchmA5FUo=",
             "user_permissions": [], 
             "username": "test-user-2"
         }, 
@@ -116,7 +116,7 @@
             "is_superuser": false,
             "last_login": "2012-01-23 05:53:31",
             "last_name": "",
-            "password": "sha1$0cf1b$d66589690edd96b410170fcae5cc2bdfb68821e7",
+            "password": "pbkdf2_sha256$600000$X9VBl26TIACb4rC7RYDXVa$/MgXp49qusu4+nPJ6BAMf0ti8iR3dLt4DnAchmA5FUo=",
             "user_permissions": [],
             "username": "test-user-aws"
         },

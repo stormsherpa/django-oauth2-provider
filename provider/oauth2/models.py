@@ -3,19 +3,22 @@ Default model implementations. Custom database or OAuth backends need to
 implement these models with fields and and methods to be compatible with the
 views in :attr:`provider.views`.
 """
-
 from base64 import urlsafe_b64encode
 from hashlib import sha256
 
 from django.db import models
+from django.db.models import Q
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from provider import constants
-from provider.constants import CLIENT_TYPES
-from provider.utils import now, short_token, long_token, get_code_expiry
-from provider.utils import get_token_expiry
-
+from django.contrib.auth.hashers import check_password
 from django.utils import timezone
+
+from provider import constants
+from provider.constants import CLIENT_TYPES, TOKEN_PREFIX_LENGTH
+from provider.utils import (
+    now, short_token, long_token, get_code_expiry, client_secret_description,
+    get_token_expiry, make_client_secret,
+)
 
 
 class Client(models.Model):
@@ -61,6 +64,55 @@ class Client(models.Model):
     class Meta:
         app_label = 'oauth2'
         db_table = 'oauth2_client'
+
+
+class ClientSecretManager(models.Manager):
+    def new_random_secret(self, client, expiration_date=None):
+        new_secret, prefix, secret_hash = make_client_secret()
+        client_secret = self.create(
+            client=client,
+            secret_prefix=prefix,
+            secret_hash=secret_hash,
+            expiration_date=expiration_date,
+        )
+        return client_secret, new_secret
+
+
+    def get_by_secret(self, client, secret):
+        if not secret or not client:
+            return self.none().get()
+
+        if isinstance(client, Client):
+            client_pk=client.pk
+        else:
+            client_pk=client
+
+        prefix = secret[:6]
+        selector = Q(client__client_id=client_pk, secret_prefix=prefix)
+        not_expired = Q(expiration_date__isnull=True) | Q(expiration_date__gte=now().date())
+        for record in self.filter(selector & not_expired):
+            if check_password(secret, record.secret_hash):
+                return record
+
+        # Get from an empty queryset to raise a DoesNotExist exception
+        return self.none().get()
+
+
+class ClientSecret(models.Model):
+    description = models.CharField(max_length=255, default=client_secret_description)
+    client = models.ForeignKey('Client', models.CASCADE)
+    secret_prefix = models.CharField(max_length=6, db_index=True)
+    secret_hash = models.CharField(max_length=255)
+    expiration_date = models.DateField(null=True, blank=True)
+
+    objects = ClientSecretManager()
+
+    class Meta:
+        app_label = 'oauth2'
+        db_table = 'oauth2_clientsecret'
+
+    def __str__(self):
+        return f"{self.client.client_id}: {self.secret_prefix}..."
 
 
 class Scope(models.Model):
@@ -160,24 +212,12 @@ class Grant(models.Model):
 
 class AccessTokenManager(models.Manager):
     def get_token(self, token):
-        return self.get(token=token, expires__gt=now())
+        filters = dict(expires__gt=now())
+        for candidate in self.filter(token_prefix=token[:TOKEN_PREFIX_LENGTH], **filters):
+            if check_password(token, candidate.token):
+                return self.get(pk=candidate.pk)
 
-    def get_scoped_token(self, user, client, scope):
-        obj = self.get(user=user, client=client, expires__gt=now())
-        obj_scopes = {s.name for s in obj.scope.all()}
-        req_scopes = {s.name for s in scope}
-        if set(req_scopes).issubset(obj_scopes):
-            return obj
-        raise AccessToken.DoesNotExist
-
-    def create(self, scope=None, *args, **kwargs):
-        obj = super(AccessTokenManager, self).create(*args, **kwargs)
-        obj.save()
-        if not scope:
-            scope = list()
-        for s in scope:
-            obj.scope.add(s)
-        return obj
+        return self.none().get()
 
 
 class AccessToken(models.Model):
@@ -201,6 +241,7 @@ class AccessToken(models.Model):
         expiry
     """
     user = models.ForeignKey(settings.AUTH_USER_MODEL, models.DO_NOTHING)
+    token_prefix = models.CharField(max_length=10, null=True, blank=True, db_index=True)
     token = models.CharField(max_length=255, default=long_token, db_index=True)
     client = models.ForeignKey('Client', models.DO_NOTHING)
     expires = models.DateTimeField()
@@ -209,7 +250,7 @@ class AccessToken(models.Model):
     objects = AccessTokenManager()
 
     def __str__(self):
-        return self.token
+        return f"{self.token_prefix}:{self.token[:25]}"
 
     def save(self, *args, **kwargs):
         if not self.expires:
@@ -255,6 +296,12 @@ class RefreshTokenManager(models.Manager):
             obj.scope.add(s)
         return obj
 
+    def get_token(self, token, **filters):
+        for candidate in self.filter(token_prefix=token[:TOKEN_PREFIX_LENGTH], **filters):
+            if check_password(token, candidate.token):
+                return self.get(pk=candidate.pk)
+        return self.none().get()
+
 
 class RefreshToken(models.Model):
     """
@@ -270,6 +317,7 @@ class RefreshToken(models.Model):
     * :attr:`expired` - ``boolean``
     """
     user = models.ForeignKey(settings.AUTH_USER_MODEL, models.DO_NOTHING)
+    token_prefix = models.CharField(max_length=10, null=True, blank=True, db_index=True)
     token = models.CharField(max_length=255, default=long_token)
     access_token = models.OneToOneField('AccessToken', models.DO_NOTHING,
             related_name='refresh_token')
@@ -279,7 +327,7 @@ class RefreshToken(models.Model):
     objects = RefreshTokenManager()
 
     def __str__(self):
-        return self.token
+        return f"{self.token_prefix}:{self.token[:25]}"
 
     class Meta:
         app_label = 'oauth2'
