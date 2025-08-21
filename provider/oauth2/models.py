@@ -241,7 +241,7 @@ class AccessToken(models.Model):
         expiry
     """
     user = models.ForeignKey(settings.AUTH_USER_MODEL, models.DO_NOTHING)
-    token_prefix = models.CharField(max_length=10, null=True, db_index=True)
+    token_prefix = models.CharField(max_length=10, null=True, blank=True, db_index=True)
     token = models.CharField(max_length=255, default=long_token, db_index=True)
     client = models.ForeignKey('Client', models.DO_NOTHING)
     expires = models.DateTimeField()
@@ -317,7 +317,7 @@ class RefreshToken(models.Model):
     * :attr:`expired` - ``boolean``
     """
     user = models.ForeignKey(settings.AUTH_USER_MODEL, models.DO_NOTHING)
-    token_prefix = models.CharField(max_length=10, null=True, db_index=True)
+    token_prefix = models.CharField(max_length=10, null=True, blank=True, db_index=True)
     token = models.CharField(max_length=255, default=long_token)
     access_token = models.OneToOneField('AccessToken', models.DO_NOTHING,
             related_name='refresh_token')

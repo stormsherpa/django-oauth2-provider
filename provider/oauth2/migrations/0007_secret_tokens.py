@@ -13,11 +13,11 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='accesstoken',
             name='token_prefix',
-            field=models.CharField(db_index=True, max_length=10, null=True),
+            field=models.CharField(db_index=True, max_length=10, null=True, blank=True),
         ),
         migrations.AddField(
             model_name='refreshtoken',
             name='token_prefix',
-            field=models.CharField(db_index=True, max_length=10, null=True),
+            field=models.CharField(db_index=True, max_length=10, null=True, blank=True),
         ),
     ]
