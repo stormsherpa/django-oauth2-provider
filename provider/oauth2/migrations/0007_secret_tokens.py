@@ -12,12 +12,12 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='accesstoken',
-            name='token_first6',
-            field=models.CharField(db_index=True, max_length=6, null=True),
+            name='token_prefix',
+            field=models.CharField(db_index=True, max_length=10, null=True),
         ),
         migrations.AddField(
             model_name='refreshtoken',
-            name='token_first6',
-            field=models.CharField(db_index=True, max_length=6, null=True),
+            name='token_prefix',
+            field=models.CharField(db_index=True, max_length=10, null=True),
         ),
     ]

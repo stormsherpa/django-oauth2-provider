@@ -7,7 +7,12 @@ from provider.oauth2.forms import ClientSecretAdminCreateForm
 
 
 class AccessTokenAdmin(admin.ModelAdmin):
-    list_display = ('user', 'client', 'token', 'expires',)
+    list_display = ('user', 'client', 'token_prefix', 'expires',)
+    raw_id_fields = ('user',)
+
+
+class RefreshTokenAdmin(admin.ModelAdmin):
+    list_display = ('__str__', 'access_token', 'user', 'client', 'expired')
     raw_id_fields = ('user',)
 
 
@@ -23,7 +28,7 @@ class ClientAdmin(admin.ModelAdmin):
 
 
 class ClientSecretAdmin(admin.ModelAdmin):
-    list_display = ('client_name', 'client_id', 'secret_first6', 'description', 'expiration_date')
+    list_display = ('client_name', 'client_id', 'secret_prefix', 'description', 'expiration_date')
 
     def get_form(self, request, obj=None, change=None, **kwargs):
         kwargs["form"] = ClientSecretAdminCreateForm
@@ -57,5 +62,5 @@ admin.site.register(models.Client, ClientAdmin)
 admin.site.register(models.ClientSecret, ClientSecretAdmin)
 admin.site.register(models.AuthorizedClient, AuthorizedClientAdmin)
 admin.site.register(models.AwsAccount, AwsAccountAdmin)
-admin.site.register(models.RefreshToken)
+admin.site.register(models.RefreshToken, RefreshTokenAdmin)
 admin.site.register(models.Scope)

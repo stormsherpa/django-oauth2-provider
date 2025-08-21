@@ -486,8 +486,8 @@ class ClientSecretAdminCreateForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         self.plain_client_secret = None
-        if not self.instance.secret_first6 or not self.instance.secret_hash:
-            new_secret, first6, secret_hash = make_client_secret()
+        if not self.instance.secret_prefix or not self.instance.secret_hash:
+            new_secret, prefix, secret_hash = make_client_secret()
             self.plain_client_secret = new_secret
-            self.instance.secret_first6 = first6
+            self.instance.secret_prefix = prefix
             self.instance.secret_hash = secret_hash

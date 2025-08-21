@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('description', models.CharField(default=provider.utils.client_secret_description, max_length=255)),
-                ('secret_first6', models.CharField(db_index=True, max_length=6)),
+                ('secret_prefix', models.CharField(db_index=True, max_length=6)),
                 ('secret_hash', models.CharField(max_length=255)),
                 ('expiration_date', models.DateField(blank=True, null=True)),
                 ('client', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='oauth2.client')),

@@ -3,7 +3,7 @@ import shortuuid
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
 
-from provider.constants import EXPIRE_DELTA, EXPIRE_DELTA_PUBLIC, EXPIRE_CODE_DELTA
+from provider.constants import EXPIRE_DELTA, EXPIRE_DELTA_PUBLIC, EXPIRE_CODE_DELTA, TOKEN_PREFIX_LENGTH
 
 from django.utils import timezone
 

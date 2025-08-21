@@ -430,7 +430,7 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
             user=user,
             client=client,
             token=access_token,
-            token_first6=access_secret[:6],
+            token_prefix=access_secret[:constants.TOKEN_PREFIX_LENGTH],
         )
         for s in scope:
             at.scope.add(s)
@@ -445,7 +445,7 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
             access_token=access_token.access_token,
             client=client,
             token=refresh_token,
-            token_first6=refresh_secret[:6],
+            token_prefix=refresh_secret[:constants.TOKEN_PREFIX_LENGTH],
         )
         access_token.add_refresh_token(refresh_secret, rt)
         return rt
@@ -486,7 +486,7 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
         as defined in :rfc:`5.1`.
         """
         response_data = {
-            'access_token': access_token.access_token.token,
+            'access_token': access_token.access_token_secret,
             'token_type': constants.TOKEN_TYPE,
             'expires_in': access_token.access_token.get_expire_delta(),
             'scope': access_token.access_token.get_scope_string(),
