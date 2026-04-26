@@ -431,6 +431,7 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
             client=client,
             token=access_token,
             token_prefix=access_secret[:constants.TOKEN_PREFIX_LENGTH],
+            expires=client.get_default_token_expiry(),
         )
         for s in scope:
             at.scope.add(s)
