@@ -59,7 +59,15 @@ class Client(models.Model):
 
     def get_default_token_expiry(self):
         public = (self.client_type == constants.PUBLIC)
-        return self.token_expiry or get_token_expiry(public)
+        expiration = self.token_expiry or get_token_expiry(public)
+        if isinstance(expiration, timezone.timedelta):
+            return now() + expiration
+        elif isinstance(expiration, int):
+            return now() + timezone.timedelta(seconds=expiration)
+        elif isinstance(expiration, timezone.datetime):
+            return expiration
+        else:
+            raise ValueError("Invalid token_expiry value for client %s: %s" % (self.client_id, expiration))
 
     class Meta:
         app_label = 'oauth2'
