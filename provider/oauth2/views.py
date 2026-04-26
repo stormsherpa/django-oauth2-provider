@@ -426,12 +426,16 @@ class AccessTokenView(AuthUtilMixin, TemplateView):
     def create_access_token(self, request, user, scope, client):
         access_secret = long_token()
         access_token = make_password(access_secret)
+        expires = client.get_default_token_expiry()
+        log.info("Creating access token for user %s in client %s with scope %s and expiry %s: %s...",
+                    user.username, client.client_id, scope, expires, access_secret[:constants.TOKEN_PREFIX_LENGTH],
+                 )
         at = models.AccessToken.objects.create(
             user=user,
             client=client,
             token=access_token,
             token_prefix=access_secret[:constants.TOKEN_PREFIX_LENGTH],
-            expires=client.get_default_token_expiry(),
+            expires=expires,
         )
         for s in scope:
             at.scope.add(s)
